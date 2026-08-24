@@ -11,7 +11,11 @@ PROJECT="${1:?usage: install.sh /path/to/project [remote-url]}"
 REMOTE="${2:-}"
 
 [ -d "$PROJECT" ] || { echo "no such directory: $PROJECT" >&2; exit 1; }
-[ -d "$PROJECT/.git" ] || { echo "not a git repo: $PROJECT" >&2; exit 1; }
+git -C "$PROJECT" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+  || { echo "not a git repo: $PROJECT" >&2; exit 1; }
+
+# In a linked worktree .git is a file; shared state lives in the common dir.
+COMMON_GIT="$(git -C "$PROJECT" rev-parse --path-format=absolute --git-common-dir)"
 
 cd "$PROJECT"
 
@@ -23,10 +27,11 @@ for pat in '.private/' '.private-remote'; do
   fi
 done
 
-# 2. info/exclude, suspenders. Survives a clobbered .gitignore.
-mkdir -p .git/info
-if ! grep -qxF '.private/' .git/info/exclude 2>/dev/null; then
-  printf '.private/\n' >> .git/info/exclude
+# 2. info/exclude, suspenders. Survives a clobbered .gitignore. Lives in the
+# common dir, so one install covers every linked worktree.
+mkdir -p "$COMMON_GIT/info"
+if ! grep -qxF '.private/' "$COMMON_GIT/info/exclude" 2>/dev/null; then
+  printf '.private/\n' >> "$COMMON_GIT/info/exclude"
   echo "info/exclude: added .private/"
 fi
 
