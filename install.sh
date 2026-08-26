@@ -101,12 +101,15 @@ mkdir -p .claude/skills/private-sync
 cp "$KIT/skill/SKILL.md" .claude/skills/private-sync/SKILL.md
 echo "skill: installed .claude/skills/private-sync/"
 
-# 5b. CLAUDE.md pointer: ambient knowledge for agents that read memory but
-# never check skills. Appended once, marker-guarded.
-if ! grep -q 'private-sync pointer' CLAUDE.md 2>/dev/null; then
-  cat "$KIT/claude-md-pointer.md" >> CLAUDE.md
-  echo "CLAUDE.md: appended .private/ pointer"
-fi
+# 5b. Memory-file pointer: ambient knowledge for agents that read memory but
+# never check skills. CLAUDE.md (Claude Code, omp) and AGENTS.md (pi/codex
+# style). Appended once each, marker-guarded.
+for MEMFILE in CLAUDE.md AGENTS.md; do
+  if ! grep -q 'private-sync pointer' "$MEMFILE" 2>/dev/null; then
+    cat "$KIT/claude-md-pointer.md" >> "$MEMFILE"
+    echo "$MEMFILE: appended .private/ pointer"
+  fi
+done
 
 # 6. Materialize .private/: clone if the remote has history, seed from the
 # template otherwise. Never clobber real notes.
@@ -156,7 +159,7 @@ fi
 if [ ! -d .private/backlog ]; then
   if command -v backlog >/dev/null 2>&1; then
     PROJ_NAME="$(basename "$PWD")"
-    (cd .private && backlog init "$PROJ_NAME" --defaults --agent-instructions claude >/dev/null)
+    (cd .private && backlog init "$PROJ_NAME" --defaults --agent-instructions claude,agents >/dev/null)
     git -C .private add -A
     git -C .private commit -q -m 'backlog init' 2>/dev/null || true
     { [ -n "$REMOTE" ] && git -C .private push -q 2>/dev/null; } || true
