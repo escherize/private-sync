@@ -152,10 +152,19 @@ else
   echo "  echo <url> > .private-remote"
 fi
 
-command -v backlog >/dev/null 2>&1 \
-  || echo "note: backlog CLI missing (npm i -g backlog.md) - task tracking degrades to WIP markers"
-[ -d .private/backlog ] \
-  || echo "note: backlog not initialized - run: cd .private && backlog init \"$(basename "$PWD")\""
+# 9. Backlog task tracking, initialized non-interactively if absent.
+if [ ! -d .private/backlog ]; then
+  if command -v backlog >/dev/null 2>&1; then
+    PROJ_NAME="$(basename "$PWD")"
+    (cd .private && backlog init "$PROJ_NAME" --defaults --agent-instructions claude >/dev/null)
+    git -C .private add -A
+    git -C .private commit -q -m 'backlog init' 2>/dev/null || true
+    { [ -n "$REMOTE" ] && git -C .private push -q 2>/dev/null; } || true
+    echo "backlog: initialized in .private/"
+  else
+    echo "note: backlog CLI missing (npm i -g backlog.md) - task tracking degrades to WIP markers"
+  fi
+fi
 
 echo
 echo "Done. .private/ is gitignored, excluded, and hook-guarded."
