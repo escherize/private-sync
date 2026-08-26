@@ -30,10 +30,12 @@ done
 # 2. info/exclude, suspenders. Survives a clobbered .gitignore. Lives in the
 # common dir, so one install covers every linked worktree.
 mkdir -p "$COMMON_GIT/info"
-if ! grep -qxF '.private/' "$COMMON_GIT/info/exclude" 2>/dev/null; then
-  printf '.private/\n' >> "$COMMON_GIT/info/exclude"
-  echo "info/exclude: added .private/"
-fi
+for pat in '.private/' '.private-remote'; do
+  if ! grep -qxF "$pat" "$COMMON_GIT/info/exclude" 2>/dev/null; then
+    printf '%s\n' "$pat" >> "$COMMON_GIT/info/exclude"
+    echo "info/exclude: added $pat"
+  fi
+done
 
 # 3. The hook. This is what actually stops distribution; the name never did.
 HOOK_DIR="$(git rev-parse --git-path hooks)"
@@ -54,11 +56,12 @@ else
 # correctly refused, but `git commit && git push` would read that as success.
 # So we also UNSTAGE the offending paths: the block then shows up in
 # `git status` and cannot be mistaken for a successful write.
-LEAKED=$(git diff --cached --name-only | grep '^\.private/' || true)
+LEAKED=$(git diff --cached --name-only | grep -E '^\.private(/|-remote$)' || true)
 if [ -n "$LEAKED" ]; then
   echo "BLOCKED: .private/ is staged for the public repo." >&2
   echo "$LEAKED" | sed 's/^/  /' >&2
-  git restore --staged .private 2>/dev/null || git reset -q HEAD -- .private 2>/dev/null || true
+  git restore --staged .private .private-remote 2>/dev/null \
+    || git reset -q HEAD -- .private .private-remote 2>/dev/null || true
   echo "Unstaged automatically. Those notes belong in the sidecar:" >&2
   echo "  git -C .private add -A && git -C .private commit && git -C .private push" >&2
   exit 1
