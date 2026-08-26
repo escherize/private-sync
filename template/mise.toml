@@ -1,0 +1,4 @@
+# Tools every agent needs to work this sidecar. `mise install` (or an
+# activated mise) makes them appear; no global npm state required.
+[tools]
+"npm:backlog.md" = "latest"

@@ -248,9 +248,11 @@ Rules:
   `backlog doc create` or `backlog decision create`. ADRs live in
   `.private/decisions/`, docs in `.private/wiki/` - name-based files that
   need no CLI and cannot collide on IDs. Backlog owns tasks, nothing else.
-- If the CLI is not installed on this machine (`npm i -g backlog.md`, or run ad
-  hoc as `npx backlog.md <command>`), do not create tasks by hand - report it
-  and move on.
+- Run backlog commands from inside the sidecar (`cd .private`), so the CLI
+  finds `backlog/` and `.private/mise.toml` provides the tool. CLI missing?
+  `mise trust && mise install` inside `.private/` fixes it; failing that,
+  `npx backlog.md`.
+  Never create tasks by hand.
 - Committing task changes uses the normal sidecar commit flow:
   `git -C .private add backlog && git -C .private commit && git -C .private push`.
 

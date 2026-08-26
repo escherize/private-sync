@@ -129,6 +129,9 @@ else
   echo "sidecar: seeded .private/ from template"
 fi
 
+# 6b. Tool manifest, added to existing sidecars that predate it.
+[ -f .private/mise.toml ] || cp "$KIT/template/mise.toml" .private/mise.toml
+
 # 7. Index tooling, refreshed on every run (fresh and existing sidecars alike).
 mkdir -p .private/bin
 cp -f "$KIT/bin/private-index" .private/bin/private-index
