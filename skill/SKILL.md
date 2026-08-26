@@ -218,6 +218,17 @@ Rules:
 - Committing task changes uses the normal sidecar commit flow:
   `git -C .private add backlog && git -C .private commit && git -C .private push`.
 
+### Claiming work
+
+Before starting a tracked item, mark it in-progress so a second agent does not
+duplicate the work. Canonical: `backlog task edit <id> -a @<agent-id> -s in-progress`.
+
+If the project tracks issues in a flat file (ISSUES.md or similar) instead,
+put a `WIP(<agent-id>, <UTC date>)` marker on the item's title line. Clear it
+when the work lands or is abandoned. A stale marker is worse than none - check
+the date before trusting one, and treat markers older than a few days as
+abandoned. Push the claim immediately; an unpushed claim protects nobody.
+
 ## Search
 
 Two stages: jq filters the derived index by frontmatter, then grep (or qmd)
