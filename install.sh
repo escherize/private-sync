@@ -152,5 +152,10 @@ else
   echo "  echo <url> > .private-remote"
 fi
 
+command -v backlog >/dev/null 2>&1 \
+  || echo "note: backlog CLI missing (npm i -g backlog.md) - task tracking degrades to WIP markers"
+[ -d .private/backlog ] \
+  || echo "note: backlog not initialized - run: cd .private && backlog init \"$(basename "$PWD")\""
+
 echo
 echo "Done. .private/ is gitignored, excluded, and hook-guarded."

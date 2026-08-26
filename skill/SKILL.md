@@ -72,6 +72,38 @@ grep -ril "flaky" .private/findings/
 grep -ril "sqlite" .private/wiki/ .private/decisions/
 ```
 
+## How we work
+
+Tracked work lives locally in `.private/backlog/` - same lifecycle as an
+issue tracker, no external service. Every nontrivial change follows it:
+
+```
+task exists?  backlog search "auth" / backlog task list --plain
+no:           backlog task create "Concise title" -d "objective + acceptance criteria"
+claim:        backlog task edit <id> -a @<agent-id> -s "In Progress"
+              git -C .private add backlog && git -C .private commit -m "claim task-<id>" && git -C .private push
+work:         decisions -> decisions/ (ADR), learnings -> findings/<agent-id>/, blockers -> note on the task
+commit:       public-repo commits reference the task: "Refs task-<id>" trailer
+done:         backlog task edit <id> -s Done, write worklog, push sidecar
+```
+
+Rules of the lifecycle:
+
+- **Claim before working, push the claim immediately.** An unpushed claim
+  protects nobody. If a task is already `In Progress` under another agent,
+  pick different work - unless the claim is days old, then treat it as
+  abandoned and reassign.
+- **Blockers are recorded, not silently absorbed.** Note on the task what you
+  are waiting on and any workaround, so the next agent doesn't rediscover it.
+- **Decisions made mid-task get an ADR** in `decisions/`, linked from the
+  task, not buried in a commit message.
+- **Done means pushed.** Status edits, worklog, findings - none of it exists
+  to other agents until `git -C .private push`.
+
+No backlog CLI on this machine? Run ad hoc as `npx backlog.md <command>`. If
+that is also impossible, fall back to the flat-file claim marker below and
+report the gap - do not skip tracking silently.
+
 ## Writing
 
 ### Findings - "I learned X"
@@ -218,16 +250,14 @@ Rules:
 - Committing task changes uses the normal sidecar commit flow:
   `git -C .private add backlog && git -C .private commit && git -C .private push`.
 
-### Claiming work
+### Claiming without backlog
 
-Before starting a tracked item, mark it in-progress so a second agent does not
-duplicate the work. Canonical: `backlog task edit <id> -a @<agent-id> -s in-progress`.
-
-If the project tracks issues in a flat file (ISSUES.md or similar) instead,
-put a `WIP(<agent-id>, <UTC date>)` marker on the item's title line. Clear it
-when the work lands or is abandoned. A stale marker is worse than none - check
-the date before trusting one, and treat markers older than a few days as
-abandoned. Push the claim immediately; an unpushed claim protects nobody.
+When work is tracked in a flat file (ISSUES.md or similar) instead of
+`backlog/`, claim by putting a `WIP(<agent-id>, <UTC date>)` marker on the
+item's title line, and clear it when the work lands or is abandoned. A stale
+marker is worse than none - check the date before trusting one, and treat
+markers older than a few days as abandoned. Same push rule as backlog claims:
+push immediately.
 
 ## Search
 
