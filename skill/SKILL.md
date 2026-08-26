@@ -244,6 +244,10 @@ Rules:
 
 - **Never hand-edit files under `backlog/`.** All mutation goes through the CLI
   so frontmatter, IDs, filenames, and section markers stay consistent.
+- **Backlog's built-in `docs/` and `decisions/` folders stay empty.** Never
+  `backlog doc create` or `backlog decision create`. ADRs live in
+  `.private/decisions/`, docs in `.private/wiki/` - name-based files that
+  need no CLI and cannot collide on IDs. Backlog owns tasks, nothing else.
 - If the CLI is not installed on this machine (`npm i -g backlog.md`, or run ad
   hoc as `npx backlog.md <command>`), do not create tasks by hand - report it
   and move on.
