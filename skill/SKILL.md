@@ -1,6 +1,6 @@
 ---
 name: private-sync
-description: Read and write the project's private synced notes in .private/ - shared context, decisions (ADRs), and findings that multiple agents across different machines and harnesses need but that must never land in the public repo. Use when recording a decision, filing a finding, looking up why something was built a certain way, or catching up on what other agents have learned. Triggers on "why did we", "file a finding", "record this decision", "what do we know about", "check the notes", "catch me up".
+description: Read and write the project's private synced notes in .private/ - shared context, decisions (ADRs), and findings that multiple agents across different machines and harnesses need but that must never land in the public repo. Use when STARTING IMPLEMENTATION of any nontrivial change (claim a task in .private/backlog first - see How we work), and when recording a decision, filing a finding, looking up why something was built a certain way, or catching up on what other agents have learned. Triggers on starting to write code, "why did we", "file a finding", "record this decision", "what do we know about", "check the notes", "catch me up", "mark it in progress".
 ---
 
 # private-sync

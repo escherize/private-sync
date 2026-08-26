@@ -103,13 +103,16 @@ echo "skill: installed .claude/skills/private-sync/"
 
 # 5b. Memory-file pointer: ambient knowledge for agents that read memory but
 # never check skills. CLAUDE.md (Claude Code, omp) and AGENTS.md (pi/codex
-# style). Appended once each, marker-guarded.
+# style). Replaced between markers on every run so pointer updates propagate.
+# A legacy block without the end marker sits at EOF, so delete-to-EOF is safe.
 for MEMFILE in CLAUDE.md AGENTS.md; do
-  if ! grep -q 'private-sync pointer' "$MEMFILE" 2>/dev/null; then
-    cat "$KIT/claude-md-pointer.md" >> "$MEMFILE"
-    echo "$MEMFILE: appended .private/ pointer"
+  if grep -q 'private-sync pointer' "$MEMFILE" 2>/dev/null; then
+    awk '/<!-- private-sync pointer -->/{skip=1} !skip{print} /<!-- \/private-sync pointer -->/{skip=0}' \
+      "$MEMFILE" > "$MEMFILE.tmp" && mv "$MEMFILE.tmp" "$MEMFILE"
   fi
+  cat "$KIT/claude-md-pointer.md" >> "$MEMFILE"
 done
+echo "pointer: refreshed in CLAUDE.md + AGENTS.md"
 
 # 6. Materialize .private/: clone if the remote has history, seed from the
 # template otherwise. Never clobber real notes.

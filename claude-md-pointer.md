@@ -11,8 +11,15 @@ Sidecar git repo (gitignored, own remote, synced via plain git). Use the
 - `.private/worklogs/<agent>/` - session logs, append-only
 - `.private/backlog/` - tasks, via the backlog CLI only
 
-Before starting work: read `.private/wiki/index.md`, then
+**Before writing any code for nontrivial work: claim a task.** Find or create
+it (`backlog task create "..."`), then
+`backlog task edit <id> -a @<agent-id> -s "In Progress"` and push the sidecar
+immediately. Work nobody claimed gets duplicated; a claim nobody pushed
+protects no one. When the work lands: `-s Done`, worklog, push.
+
+Before starting: read `.private/wiki/index.md`, then
 `git -C .private log --oneline -20`. Commit and push sidecar changes
 separately: `git -C .private add -A && git -C .private commit && git -C .private push`.
 If `.private/` is missing: `git clone "$(cat .private-remote)" .private`.
 Never commit `.private/` contents or secret values to the public repo.
+<!-- /private-sync pointer -->
