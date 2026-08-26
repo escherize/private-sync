@@ -101,6 +101,13 @@ mkdir -p .claude/skills/private-sync
 cp "$KIT/skill/SKILL.md" .claude/skills/private-sync/SKILL.md
 echo "skill: installed .claude/skills/private-sync/"
 
+# 5b. CLAUDE.md pointer: ambient knowledge for agents that read memory but
+# never check skills. Appended once, marker-guarded.
+if ! grep -q 'private-sync pointer' CLAUDE.md 2>/dev/null; then
+  cat "$KIT/claude-md-pointer.md" >> CLAUDE.md
+  echo "CLAUDE.md: appended .private/ pointer"
+fi
+
 # 6. Materialize .private/: clone if the remote has history, seed from the
 # template otherwise. Never clobber real notes.
 if [ -d .private ]; then
