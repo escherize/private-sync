@@ -26,13 +26,13 @@ paths (`findings/<agent-id>/`, `worklogs/<agent-id>/<session>.md`).
 
 ```sh
 ./install.sh /path/to/project [remote-url]
-
-# then make the sidecar its own repo and give it a remote:
-cd /path/to/project
-git -C .private init && git -C .private add -A
-git -C .private commit -m 'seed private notes'
-git -C .private remote add origin <url> && git -C .private push -u origin main
 ```
+
+One command. The remote resolves convention-over-config: explicit arg >
+`.private-remote` file > existing sidecar origin > a private GitHub repo
+`private-<dirname>` under the logged-in `gh` user, created on demand. If the
+remote already has history the sidecar is cloned from it; otherwise it is
+seeded from the template, committed, and pushed.
 
 Re-running `install.sh` is safe: an existing sidecar is left alone, tooling is
 refreshed.

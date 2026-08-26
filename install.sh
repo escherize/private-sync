@@ -68,13 +68,32 @@ HOOK_EOF
   echo "hook: installed pre-commit guard"
 fi
 
-# 4. Remote pointer, so the skill can bootstrap a clone.
+# 4. Resolve the remote: arg > .private-remote > existing sidecar origin >
+# convention: gh repo "private-<dirname>" under the logged-in user, created
+# on demand. Config beats convention; convention beats asking.
+if [ -z "$REMOTE" ] && [ -f .private-remote ]; then
+  REMOTE="$(cat .private-remote)"
+fi
+if [ -z "$REMOTE" ] && [ -d .private/.git ]; then
+  REMOTE="$(git -C .private remote get-url origin 2>/dev/null || true)"
+fi
+if [ -z "$REMOTE" ] && command -v gh >/dev/null 2>&1; then
+  GH_USER="$(gh api user -q .login 2>/dev/null || true)"
+  if [ -n "$GH_USER" ]; then
+    NAME="private-$(basename "$PWD")"
+    if ! gh repo view "$GH_USER/$NAME" >/dev/null 2>&1; then
+      gh repo create "$GH_USER/$NAME" --private >/dev/null
+      echo "remote: created private GitHub repo $GH_USER/$NAME"
+    fi
+    REMOTE="git@github.com:$GH_USER/$NAME.git"
+  fi
+fi
 if [ -n "$REMOTE" ]; then
   printf '%s\n' "$REMOTE" > .private-remote
-  echo "remote: wrote .private-remote"
-elif [ ! -f .private-remote ]; then
-  echo "note: no remote given. Write the sidecar's git URL to .private-remote"
-  echo "      when you have one, so agents can clone it."
+  echo "remote: $REMOTE"
+else
+  echo "note: no remote (no arg, no .private-remote, gh unavailable)."
+  echo "      Write the sidecar's git URL to .private-remote when you have one."
 fi
 
 # 5. Skillfile, so an agent that clones the public repo learns the rest.
@@ -82,13 +101,16 @@ mkdir -p .claude/skills/private-sync
 cp "$KIT/skill/SKILL.md" .claude/skills/private-sync/SKILL.md
 echo "skill: installed .claude/skills/private-sync/"
 
-# 6. Seed .private/ only if absent. Never clobber real notes.
+# 6. Materialize .private/: clone if the remote has history, seed from the
+# template otherwise. Never clobber real notes.
 if [ -d .private ]; then
   echo "sidecar: .private/ already exists, left alone"
+elif [ -n "$REMOTE" ] && [ -n "$(git ls-remote "$REMOTE" 2>/dev/null)" ]; then
+  git clone -q "$REMOTE" .private
+  echo "sidecar: cloned from $REMOTE"
 else
   cp -R "$KIT/template" .private
   echo "sidecar: seeded .private/ from template"
-  SEEDED=1
 fi
 
 # 7. Index tooling, refreshed on every run (fresh and existing sidecars alike).
@@ -97,12 +119,30 @@ cp -f "$KIT/bin/private-index" .private/bin/private-index
 chmod +x .private/bin/private-index
 echo "bin: installed .private/bin/private-index"
 
-if [ "${SEEDED:-0}" = "1" ]; then
+# 8. Make the sidecar a live repo: init+commit if fresh, wire origin, push
+# if it has never been pushed. Idempotent like everything above.
+if [ ! -d .private/.git ]; then
+  git -C .private init -q -b main
+  git -C .private add -A
+  git -C .private commit -q -m 'seed private notes'
+  echo "sidecar: committed seed"
+fi
+if [ -n "$REMOTE" ]; then
+  git -C .private remote add origin "$REMOTE" 2>/dev/null \
+    || git -C .private remote set-url origin "$REMOTE"
+  if ! git -C .private rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+    if git -C .private push -q -u origin main; then
+      echo "sidecar: pushed to $REMOTE"
+    else
+      echo "WARNING: push to $REMOTE failed; push by hand:" >&2
+      echo "  git -C .private push -u origin main" >&2
+    fi
+  fi
+else
   echo
-  echo "Next: make it its own repo and push it somewhere private."
-  echo "  git -C .private init && git -C .private add -A"
-  echo "  git -C .private commit -m 'seed private notes'"
+  echo "Next: push it somewhere private, then record the URL:"
   echo "  git -C .private remote add origin <url> && git -C .private push -u origin main"
+  echo "  echo <url> > .private-remote"
 fi
 
 echo
