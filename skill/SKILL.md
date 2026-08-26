@@ -99,6 +99,11 @@ Rules of the lifecycle:
   task, not buried in a commit message.
 - **Done means pushed.** Status edits, worklog, findings - none of it exists
   to other agents until `git -C .private push`.
+- **Be noisy, stay focused.** Anything broken, confusing, or smelly that you
+  pass on the way: file it - a task (`backlog task create`) for actionable
+  work, a finding for knowledge - and keep moving on your claimed task. Never
+  fix drive-by issues mid-task, and never swallow them silently. A noisy
+  backlog is cheap; a silent discovery is lost.
 
 No backlog CLI on this machine? Run ad hoc as `npx backlog.md <command>`. If
 that is also impossible, fall back to the flat-file claim marker below and

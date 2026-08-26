@@ -17,6 +17,10 @@ it (`backlog task create "..."`), then
 immediately. Work nobody claimed gets duplicated; a claim nobody pushed
 protects no one. When the work lands: `-s Done`, worklog, push.
 
+Be noisy: file every issue you pass (`backlog task create "..."`) instead of
+fixing or ignoring it, then return to your claimed task. Deal-with-later is
+the point; silent discoveries are lost.
+
 Before starting: read `.private/wiki/index.md`, then
 `git -C .private log --oneline -20`. Commit and push sidecar changes
 separately: `git -C .private add -A && git -C .private commit && git -C .private push`.
