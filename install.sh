@@ -13,17 +13,30 @@ REGISTRY="$HOME/.config/private-sync/installs"
 # registered project. This is the auto-update path; cron it if you like.
 if [ "${1:-}" = "--update-all" ]; then
   git -C "$KIT" pull --ff-only -q && echo "kit: pulled $(git -C "$KIT" rev-parse --short HEAD)"
-  # Installs are discovered, not just remembered: any project under ~/dv
-  # carrying a sidecar marker counts, however it got here (fresh clone on a
-  # new machine included). The registry only adds projects living elsewhere.
+  # Installs are discovered, not just remembered, from three sources:
+  # local sidecar markers under ~/dv, the GitHub account's private-<name>
+  # sidecar repos (the global registry, by naming convention), and the
+  # per-machine registry for projects living outside ~/dv.
+  GH_USER=""
+  command -v gh >/dev/null 2>&1 && GH_USER="$(gh api user -q .login 2>/dev/null || true)"
   {
     for D in "$HOME"/dv/*/; do
       [ -e "${D}.private" ] || [ -e "${D}.private-remote" ] && printf '%s\n' "${D%/}"
     done
+    if [ -n "$GH_USER" ]; then
+      gh repo list "$GH_USER" --limit 200 --json name,visibility \
+          -q '.[] | select(.visibility=="PRIVATE") | .name' 2>/dev/null \
+        | sed -n 's/^private-//p' | while IFS= read -r N; do
+            if [ -d "$HOME/dv/$N" ]; then
+              printf '%s\n' "$HOME/dv/$N"
+            else
+              echo "not on this machine: $N (clone it, then install.sh adopts the sidecar)" >&2
+            fi
+          done
+    fi
     [ -f "$REGISTRY" ] && cat "$REGISTRY"
   } | sort -u | while IFS= read -r P; do
     [ -d "$P" ] || { echo "skip (gone): $P"; continue; }
-    [ "$P" = "$KIT" ] && continue
     echo "== $P"
     "$KIT/install.sh" "$P"
   done

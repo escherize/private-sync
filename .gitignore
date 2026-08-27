@@ -1,2 +1,4 @@
 conversation-*.jsonl
 conversation-*.txt
+.private/
+.private-remote
