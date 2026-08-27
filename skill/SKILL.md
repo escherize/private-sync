@@ -241,7 +241,7 @@ backlog task create "Add OAuth System"
 backlog task list --plain
 backlog task 7 --plain            # view one task
 backlog task edit 7 -a @a3        # assign / annotate / set status
-backlog task archive 7            # done and dusted
+backlog task archive 7            # HIDES it - see rule below
 backlog search "auth"             # fuzzy across tasks, docs, decisions
 ```
 
@@ -249,6 +249,12 @@ Rules:
 
 - **Never hand-edit files under `backlog/`.** All mutation goes through the CLI
   so frontmatter, IDs, filenames, and section markers stay consistent.
+- **`archive` and `complete` hide a task, they do not keep history.** Both move
+  the file out of `backlog/tasks/`, after which `task list`, `task <id>`, and
+  `search` no longer find it - and `task <id>` reports "not found" as if it
+  were a branch problem. Finished work gets `backlog task edit <id> -s Done`
+  and stays readable. Reach for `archive` only to deliberately drop a task out
+  of everyone's view.
 - **Backlog's built-in `docs/` and `decisions/` folders stay empty.** Never
   `backlog doc create` or `backlog decision create`. ADRs live in
   `.private/decisions/`, docs in `.private/wiki/` - name-based files that

@@ -136,9 +136,16 @@ else
 fi
 
 # 5. Skillfile, so an agent that clones the public repo learns the rest.
+# A symlink here means the project distributes the skill through its sidecar
+# (.private/skills/): that copy syncs via sidecar push/pull and is never
+# clobbered from the kit. Kit edits reach it by deliberate merge.
 mkdir -p .claude/skills/private-sync
-cp "$KIT/skill/SKILL.md" .claude/skills/private-sync/SKILL.md
-echo "skill: installed .claude/skills/private-sync/"
+if [ -L .claude/skills/private-sync/SKILL.md ]; then
+  echo "skill: sidecar-managed (symlink into .private/skills/), left alone"
+else
+  cp "$KIT/skill/SKILL.md" .claude/skills/private-sync/SKILL.md
+  echo "skill: installed .claude/skills/private-sync/"
+fi
 
 # 5b. Memory-file pointer: ambient knowledge for agents that read memory but
 # never check skills. CLAUDE.md (Claude Code, omp) and AGENTS.md (pi/codex
