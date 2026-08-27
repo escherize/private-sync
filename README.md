@@ -35,7 +35,8 @@ remote already has history the sidecar is cloned from it; otherwise it is
 seeded from the template, committed, and pushed.
 
 Re-running `install.sh` is safe: an existing sidecar is left alone, tooling is
-refreshed.
+refreshed. Every install is recorded in `~/.config/private-sync/installs`;
+`./install.sh --update-all` pulls the kit and refreshes them all.
 
 ## The layers
 
