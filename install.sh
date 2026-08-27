@@ -13,12 +13,20 @@ REGISTRY="$HOME/.config/private-sync/installs"
 # registered project. This is the auto-update path; cron it if you like.
 if [ "${1:-}" = "--update-all" ]; then
   git -C "$KIT" pull --ff-only -q && echo "kit: pulled $(git -C "$KIT" rev-parse --short HEAD)"
-  [ -f "$REGISTRY" ] || { echo "no registered installs ($REGISTRY)"; exit 0; }
-  while IFS= read -r P; do
+  # Installs are discovered, not just remembered: any project under ~/dv
+  # carrying a sidecar marker counts, however it got here (fresh clone on a
+  # new machine included). The registry only adds projects living elsewhere.
+  {
+    for D in "$HOME"/dv/*/; do
+      [ -e "${D}.private" ] || [ -e "${D}.private-remote" ] && printf '%s\n' "${D%/}"
+    done
+    [ -f "$REGISTRY" ] && cat "$REGISTRY"
+  } | sort -u | while IFS= read -r P; do
     [ -d "$P" ] || { echo "skip (gone): $P"; continue; }
+    [ "$P" = "$KIT" ] && continue
     echo "== $P"
     "$KIT/install.sh" "$P"
-  done < "$REGISTRY"
+  done
   exit 0
 fi
 
