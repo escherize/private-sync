@@ -7,7 +7,22 @@
 set -eu
 
 KIT="$(cd "$(dirname "$0")" && pwd)"
-PROJECT="${1:?usage: install.sh /path/to/project [remote-url]}"
+REGISTRY="$HOME/.config/private-sync/installs"
+
+# --update-all: pull the kit, then re-run the (idempotent) install on every
+# registered project. This is the auto-update path; cron it if you like.
+if [ "${1:-}" = "--update-all" ]; then
+  git -C "$KIT" pull --ff-only -q && echo "kit: pulled $(git -C "$KIT" rev-parse --short HEAD)"
+  [ -f "$REGISTRY" ] || { echo "no registered installs ($REGISTRY)"; exit 0; }
+  while IFS= read -r P; do
+    [ -d "$P" ] || { echo "skip (gone): $P"; continue; }
+    echo "== $P"
+    "$KIT/install.sh" "$P"
+  done < "$REGISTRY"
+  exit 0
+fi
+
+PROJECT="${1:?usage: install.sh /path/to/project [remote-url] | --update-all}"
 REMOTE="${2:-}"
 
 [ -d "$PROJECT" ] || { echo "no such directory: $PROJECT" >&2; exit 1; }
@@ -177,6 +192,10 @@ if [ ! -d .private/backlog ]; then
     echo "note: backlog CLI missing (npm i -g backlog.md) - task tracking degrades to WIP markers"
   fi
 fi
+
+# 10. Register this install so --update-all finds it.
+mkdir -p "$(dirname "$REGISTRY")"
+grep -qxF "$PWD" "$REGISTRY" 2>/dev/null || printf '%s\n' "$PWD" >> "$REGISTRY"
 
 echo
 echo "Done. .private/ is gitignored, excluded, and hook-guarded."
