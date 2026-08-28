@@ -1,0 +1,20 @@
+#!/bin/sh
+# private-sync session start: sync the sidecar and surface board state.
+# Runs from the project root via a SessionStart hook. Output lands in the
+# agent's context; must never fail or block the session.
+[ -d .private ] || exit 0
+
+git -C .private pull --ff-only -q 2>/dev/null
+[ -x .private/bin/private-index ] && .private/bin/private-index --out .private/index.jsonl 2>/dev/null
+
+# Stale claims: In Progress tasks untouched for >3 days are abandoned by
+# convention. Grep the frontmatter directly - no task-CLI dependency, so a
+# tracker swap (see decisions/) does not break this.
+STALE=$(find .private/backlog/tasks -name '*.md' -mtime +3 2>/dev/null | while IFS= read -r F; do
+  grep -q '^status: In Progress' "$F" && printf '%s\n' "$F"
+done)
+if [ -n "$STALE" ]; then
+  echo "STALE CLAIMS - In Progress >3 days, treat as abandoned and reassign (private-sync skill):"
+  echo "$STALE" | sed 's/^/  /'
+fi
+exit 0

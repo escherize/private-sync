@@ -52,11 +52,23 @@ git -C "$PROJECT" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
 
 # In a linked worktree .git is a file; shared state lives in the common dir.
 COMMON_GIT="$(git -C "$PROJECT" rev-parse --path-format=absolute --git-common-dir)"
+GIT_DIR="$(git -C "$PROJECT" rev-parse --path-format=absolute --git-dir)"
+
+# A linked worktree gets no sidecar of its own: install into the main
+# checkout, then share its .private/ by symlink (one working copy, no drift).
+if [ "$GIT_DIR" != "$COMMON_GIT" ]; then
+  MAIN_ROOT="$(dirname "$COMMON_GIT")"
+  "$KIT/install.sh" "$MAIN_ROOT" ${REMOTE:+"$REMOTE"}
+  cd "$PROJECT"
+  [ -e .private ] || { ln -s "$MAIN_ROOT/.private" .private; echo "worktree: linked .private -> $MAIN_ROOT/.private"; }
+  exit 0
+fi
 
 cd "$PROJECT"
 
-# 1. gitignore, belt.
-for pat in '.private/' '.private-remote'; do
+# 1. gitignore, belt. The bare '.private' pattern also covers a worktree's
+# symlink, which git sees as a file and the '.private/' pattern misses.
+for pat in '.private' '.private/' '.private-remote'; do
   if ! grep -qxF "$pat" .gitignore 2>/dev/null; then
     printf '%s\n' "$pat" >> .gitignore
     echo "gitignore: added $pat"
@@ -66,7 +78,7 @@ done
 # 2. info/exclude, suspenders. Survives a clobbered .gitignore. Lives in the
 # common dir, so one install covers every linked worktree.
 mkdir -p "$COMMON_GIT/info"
-for pat in '.private/' '.private-remote'; do
+for pat in '.private' '.private/' '.private-remote'; do
   if ! grep -qxF "$pat" "$COMMON_GIT/info/exclude" 2>/dev/null; then
     printf '%s\n' "$pat" >> "$COMMON_GIT/info/exclude"
     echo "info/exclude: added $pat"
@@ -92,7 +104,7 @@ else
 # correctly refused, but `git commit && git push` would read that as success.
 # So we also UNSTAGE the offending paths: the block then shows up in
 # `git status` and cannot be mistaken for a successful write.
-LEAKED=$(git diff --cached --name-only | grep -E '^\.private(/|-remote$)' || true)
+LEAKED=$(git diff --cached --name-only | grep -E '^\.private(/|-remote$|$)' || true)
 if [ -n "$LEAKED" ]; then
   echo "BLOCKED: .private/ is staged for the public repo." >&2
   echo "$LEAKED" | sed 's/^/  /' >&2
@@ -175,11 +187,38 @@ fi
 # 6b. Tool manifest, added to existing sidecars that predate it.
 [ -f .private/mise.toml ] || cp "$KIT/template/mise.toml" .private/mise.toml
 
-# 7. Index tooling, refreshed on every run (fresh and existing sidecars alike).
+# 7. Sidecar tooling, refreshed on every run (fresh and existing alike).
 mkdir -p .private/bin
-cp -f "$KIT/bin/private-index" .private/bin/private-index
-chmod +x .private/bin/private-index
-echo "bin: installed .private/bin/private-index"
+for TOOL in private-index private-session-start; do
+  cp -f "$KIT/bin/$TOOL" ".private/bin/$TOOL"
+  chmod +x ".private/bin/$TOOL"
+done
+echo "bin: installed .private/bin/{private-index,private-session-start}"
+
+# 7b. SessionStart hook: pull the sidecar, rebuild the index, surface stale
+# claims - every session starts current. Merged into existing settings with
+# jq, never clobbered.
+SESSION_CMD=".private/bin/private-session-start"
+if [ ! -f .claude/settings.json ]; then
+  printf '{\n  "hooks": {\n    "SessionStart": [\n      { "hooks": [ { "type": "command", "command": "%s" } ] }\n    ]\n  }\n}\n' "$SESSION_CMD" > .claude/settings.json
+  echo "settings: created .claude/settings.json with SessionStart hook"
+elif ! grep -qF "$SESSION_CMD" .claude/settings.json; then
+  if command -v jq >/dev/null 2>&1; then
+    jq --arg cmd "$SESSION_CMD" \
+      '.hooks.SessionStart = ((.hooks.SessionStart // []) + [{"hooks":[{"type":"command","command":$cmd}]}])' \
+      .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
+    echo "settings: merged SessionStart hook into .claude/settings.json"
+  else
+    echo "WARNING: .claude/settings.json exists and jq is missing; add by hand:" >&2
+    echo "         SessionStart hook command: $SESSION_CMD" >&2
+  fi
+fi
+
+# 7d. Share the sidecar into any linked worktrees of this checkout.
+git worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | while IFS= read -r WT; do
+  [ "$WT" = "$(pwd -P)" ] && continue
+  [ -e "$WT/.private" ] || { ln -s "$(pwd -P)/.private" "$WT/.private"; echo "worktree: linked $WT/.private"; }
+done
 
 # 8. Make the sidecar a live repo: init+commit if fresh, wire origin, push
 # if it has never been pushed. Idempotent like everything above.
@@ -206,6 +245,44 @@ else
   echo "  git -C .private remote add origin <url> && git -C .private push -u origin main"
   echo "  echo <url> > .private-remote"
 fi
+
+# 8b. Sidecar-internal hooks. post-commit: push in the background, so claims
+# and findings propagate without discipline. pre-commit: secret tripwire.
+SIDECAR_HOOKS="$(git -C .private rev-parse --path-format=absolute --git-path hooks)"
+mkdir -p "$SIDECAR_HOOKS"
+for H in post-commit pre-commit; do
+  if [ -e "$SIDECAR_HOOKS/$H" ] && ! grep -q 'private-sync' "$SIDECAR_HOOKS/$H" 2>/dev/null; then
+    echo "WARNING: sidecar $H hook exists and is not ours; not touching it." >&2
+  fi
+done
+if [ ! -e "$SIDECAR_HOOKS/post-commit" ] || grep -q 'private-sync' "$SIDECAR_HOOKS/post-commit" 2>/dev/null; then
+  cat > "$SIDECAR_HOOKS/post-commit" <<'PC_EOF'
+#!/bin/sh
+# private-sync auto-push: done means pushed, without relying on discipline.
+(git push -q origin HEAD 2>/dev/null || true) &
+PC_EOF
+  chmod +x "$SIDECAR_HOOKS/post-commit"
+fi
+if [ ! -e "$SIDECAR_HOOKS/pre-commit" ] || grep -q 'private-sync' "$SIDECAR_HOOKS/pre-commit" 2>/dev/null; then
+  cat > "$SIDECAR_HOOKS/pre-commit" <<'SC_EOF'
+#!/bin/sh
+# private-sync secret tripwire: notes reference where a secret lives, never
+# its value. Override for a false positive: PRIVATE_SYNC_ALLOW_SECRETS=1
+[ -n "${PRIVATE_SYNC_ALLOW_SECRETS:-}" ] && exit 0
+HITS=$(git diff --cached -U0 \
+  | grep -nE '(ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|xox[baprs]-[A-Za-z0-9-]{10,}|sk-(ant-)?[A-Za-z0-9-]{20,})' \
+  || true)
+if [ -n "$HITS" ]; then
+  echo "BLOCKED: possible secret staged in the sidecar:" >&2
+  echo "$HITS" | head -5 | sed 's/^/  /' >&2
+  echo "Reference the secret's location, never its value (private-sync skill)." >&2
+  echo "False positive? PRIVATE_SYNC_ALLOW_SECRETS=1 git -C .private commit ..." >&2
+  exit 1
+fi
+SC_EOF
+  chmod +x "$SIDECAR_HOOKS/pre-commit"
+fi
+echo "sidecar hooks: auto-push (post-commit) + secret tripwire (pre-commit)"
 
 # 9. Backlog task tracking, initialized non-interactively if absent.
 if [ ! -d .private/backlog ]; then
